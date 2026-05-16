@@ -1,8 +1,17 @@
+import fs from 'node:fs'
+import path from 'node:path'
+
 import {
   GherkinStreams,
   IGherkinStreamOptions,
 } from '@cucumber/gherkin-streams'
-import { Envelope, IdGenerator, ParseError } from '@cucumber/messages'
+
+import {
+  Envelope,
+  IdGenerator,
+  ParseError,
+  SourceMediaType,
+} from '@cucumber/messages'
 import { Query as GherkinQuery } from '@cucumber/gherkin-utils'
 import { IFilterablePickle } from '../filter'
 import { ISourcesCoordinates } from './types'
@@ -59,13 +68,52 @@ export async function getPicklesAndErrors({
   }
 }
 
+// async function gherkinFromPaths(
+//   paths: string[],
+//   options: IGherkinStreamOptions,
+//   onEnvelope: (envelope: Envelope) => void
+// ): Promise<void> {
+//   return new Promise((resolve, reject) => {
+//     const gherkinMessageStream = GherkinStreams.fromPaths(paths, options)
+//     gherkinMessageStream.on('data', onEnvelope)
+//     gherkinMessageStream.on('end', resolve)
+//     gherkinMessageStream.on('error', reject)
+//   })
+// }
+//
+function getSourceUri(
+  filePath: string,
+  options: IGherkinStreamOptions
+): string {
+  if (options.relativeTo && !filePath.startsWith('/$bunfs/')) {
+    return path.relative(options.relativeTo, filePath)
+  }
+
+  return filePath
+}
+
+function getMediaType(path: string): SourceMediaType {
+  return path.endsWith('.feature.md')
+    ? SourceMediaType.TEXT_X_CUCUMBER_GHERKIN_MARKDOWN
+    : SourceMediaType.TEXT_X_CUCUMBER_GHERKIN_PLAIN
+}
+
 async function gherkinFromPaths(
   paths: string[],
   options: IGherkinStreamOptions,
   onEnvelope: (envelope: Envelope) => void
 ): Promise<void> {
+  const sources: Envelope[] = paths.map((filePath) => ({
+    source: {
+      uri: getSourceUri(filePath, options),
+      data: fs.readFileSync(filePath, 'utf8'),
+      mediaType: getMediaType(filePath),
+    },
+  }))
+
   return new Promise((resolve, reject) => {
-    const gherkinMessageStream = GherkinStreams.fromPaths(paths, options)
+    const gherkinMessageStream = GherkinStreams.fromSources(sources, options)
+
     gherkinMessageStream.on('data', onEnvelope)
     gherkinMessageStream.on('end', resolve)
     gherkinMessageStream.on('error', reject)

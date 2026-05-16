@@ -54,6 +54,18 @@ async function expandPaths(
 ): Promise<string[]> {
   const expandedPaths = await Promise.all(
     unexpandedPaths.map(async (unexpandedPath) => {
+      const candidate = path.isAbsolute(unexpandedPath)
+        ? unexpandedPath
+        : path.join(cwd, unexpandedPath)
+
+      if (path.extname(candidate) !== '') {
+        try {
+          await fs.readFile(candidate, 'utf8')
+          return [candidate]
+        } catch {
+          // Not a directly readable file path.
+        }
+      }
       const matches = await glob(unexpandedPath, {
         absolute: true,
         windowsPathsNoEscape: true,
