@@ -1,17 +1,11 @@
-import fs from 'node:fs'
+import fs from 'node:fs/promises'
 import path from 'node:path'
-
+import { makeSourceEnvelope } from '@cucumber/gherkin'
 import {
   GherkinStreams,
   IGherkinStreamOptions,
 } from '@cucumber/gherkin-streams'
-
-import {
-  Envelope,
-  IdGenerator,
-  ParseError,
-  SourceMediaType,
-} from '@cucumber/messages'
+import { Envelope, IdGenerator, ParseError } from '@cucumber/messages'
 import { Query as GherkinQuery } from '@cucumber/gherkin-utils'
 import { IFilterablePickle } from '../filter'
 import { ISourcesCoordinates } from './types'
@@ -68,34 +62,17 @@ export async function getPicklesAndErrors({
   }
 }
 
-// async function gherkinFromPaths(
-//   paths: string[],
-//   options: IGherkinStreamOptions,
-//   onEnvelope: (envelope: Envelope) => void
-// ): Promise<void> {
-//   return new Promise((resolve, reject) => {
-//     const gherkinMessageStream = GherkinStreams.fromPaths(paths, options)
-//     gherkinMessageStream.on('data', onEnvelope)
-//     gherkinMessageStream.on('end', resolve)
-//     gherkinMessageStream.on('error', reject)
-//   })
-// }
-//
-function getSourceUri(
-  filePath: string,
-  options: IGherkinStreamOptions
-): string {
-  if (options.relativeTo && !filePath.startsWith('/$bunfs/')) {
-    return path.relative(options.relativeTo, filePath)
+function getSourceUri(filePath: string, relativeTo?: string): string {
+  if (!relativeTo) {
+    return filePath
   }
-
-  return filePath
-}
-
-function getMediaType(path: string): SourceMediaType {
-  return path.endsWith('.feature.md')
-    ? SourceMediaType.TEXT_X_CUCUMBER_GHERKIN_MARKDOWN
-    : SourceMediaType.TEXT_X_CUCUMBER_GHERKIN_PLAIN
+  const relativePath = path.relative(relativeTo, filePath)
+  /*
+   * Keep the original path for sources that resolve outside `relativeTo`,
+   * such as virtual file systems like Bun's embedded `/$bunfs`, where a
+   * relative URI would be meaningless.
+   */
+  return relativePath.startsWith('..') ? filePath : relativePath
 }
 
 async function gherkinFromPaths(
@@ -103,17 +80,21 @@ async function gherkinFromPaths(
   options: IGherkinStreamOptions,
   onEnvelope: (envelope: Envelope) => void
 ): Promise<void> {
-  const sources: Envelope[] = paths.map((filePath) => ({
-    source: {
-      uri: getSourceUri(filePath, options),
-      data: fs.readFileSync(filePath, 'utf8'),
-      mediaType: getMediaType(filePath),
-    },
-  }))
-
+  /*
+   * Read the sources ourselves rather than letting `GherkinStreams.fromPaths`
+   * stream them, so we support file systems that don't implement
+   * `fs.createReadStream` (e.g. Bun's embedded `/$bunfs`).
+   */
+  const sources = await Promise.all(
+    paths.map(async (filePath) =>
+      makeSourceEnvelope(
+        await fs.readFile(filePath, 'utf-8'),
+        getSourceUri(filePath, options.relativeTo)
+      )
+    )
+  )
   return new Promise((resolve, reject) => {
     const gherkinMessageStream = GherkinStreams.fromSources(sources, options)
-
     gherkinMessageStream.on('data', onEnvelope)
     gherkinMessageStream.on('end', resolve)
     gherkinMessageStream.on('error', reject)

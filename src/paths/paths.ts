@@ -54,16 +54,21 @@ async function expandPaths(
 ): Promise<string[]> {
   const expandedPaths = await Promise.all(
     unexpandedPaths.map(async (unexpandedPath) => {
-      const candidate = path.isAbsolute(unexpandedPath)
-        ? unexpandedPath
-        : path.join(cwd, unexpandedPath)
-
-      if (path.extname(candidate) !== '') {
+      /*
+       * Resolve explicit file paths directly. This supports file systems that
+       * glob cannot enumerate but are still readable (e.g. Bun's embedded
+       * `/$bunfs`), and short-circuits globbing for plain file paths.
+       */
+      if (path.extname(unexpandedPath) !== '') {
+        const candidate = path.isAbsolute(unexpandedPath)
+          ? unexpandedPath
+          : path.join(cwd, unexpandedPath)
         try {
-          await fs.readFile(candidate, 'utf8')
-          return [candidate]
+          if ((await fs.stat(candidate)).isFile()) {
+            return [candidate]
+          }
         } catch {
-          // Not a directly readable file path.
+          // Not a directly resolvable file; fall back to glob expansion.
         }
       }
       const matches = await glob(unexpandedPath, {
