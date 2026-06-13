@@ -1,0 +1,1 @@
+{"version":3,"file":"doc-strings.js","sourceRoot":"","sources":["doc-strings.ts"],"names":[],"mappings":";;AAAA,sCAAoC;AAEpC,IAAA,WAAK,EAAC,eAAe,EAAE,CAAC,SAAiB,EAAE,EAAE;IAC3C,QAAQ;AACV,CAAC,CAAC,CAAA","sourcesContent":["import { Given } from '../../../src'\n\nGiven('a doc string:', (docString: string) => {\n  // no-op\n})\n"]}

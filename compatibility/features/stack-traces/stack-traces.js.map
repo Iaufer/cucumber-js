@@ -1,0 +1,1 @@
+{"version":3,"file":"stack-traces.js","sourceRoot":"","sources":["stack-traces.ts"],"names":[],"mappings":";;AAAA,sCAAmC;AAEnC,IAAA,UAAI,EAAC,4BAA4B,EAAE;IACjC,MAAM,IAAI,KAAK,CAAC,MAAM,CAAC,CAAA;AACzB,CAAC,CAAC,CAAA","sourcesContent":["import { When } from '../../../src'\n\nWhen('a step throws an exception', function () {\n  throw new Error('BOOM')\n})\n"]}
